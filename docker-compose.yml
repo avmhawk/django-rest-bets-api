@@ -1,0 +1,41 @@
+version: "3.7"
+
+services:
+  db:
+    image: postgres
+    restart: always
+    environment:
+      # TODO: move to environment file, add POSTGRES_HOST and PORT(?), add PORT to postgresql.conf
+      # TODO: create django_db user with right rules:
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_USER: postgres
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+  web:
+    build: .
+    # command: python manage.py runserver 0.0.0.0:8000
+    # ^^ rightway, and manually apply: sudo docker-compose run web python manage.py makemigrations
+    # or wait-for-it.sh
+    command: bash -c "while !</dev/tcp/db/5432; do sleep 1; done && sleep 1 && python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./src:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+    # command: [
+    #   "wait-for-postgres.sh",
+    #   "db",
+    #   "python",
+    #   'bash -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"'  # ?
+    # ]
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 6080:8080

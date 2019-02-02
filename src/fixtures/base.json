@@ -1,0 +1,65 @@
+[
+{
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+        "password": "pbkdf2_sha256$100000$NR5K5mll5tyW$Iur3HNeRTkkau32BK9cKo8nFVrsjEZHp1eSZoMxS8Eg=",
+        "last_login": "2019-01-31T15:26:43.550Z",
+        "is_superuser": true,
+        "username": "admin",
+        "first_name": "",
+        "last_name": "",
+        "email": "avmhawk@gmail.com",
+        "is_staff": true,
+        "is_active": true,
+        "date_joined": "2019-01-31T15:18:35.905Z",
+        "groups": [],
+        "user_permissions": []
+    }
+},
+{
+    "model": "bets.wallet",
+    "pk": 2,
+    "fields": {
+        "balance": 0,
+        "is_active": true,
+        "is_company_wallet": true
+    }
+},
+{
+    "model": "bets.wallet",
+    "pk": 3,
+    "fields": {
+        "balance": 200,
+        "is_active": true,
+        "is_company_wallet": false
+    }
+},
+{
+    "model": "bets.team",
+    "pk": 1,
+    "fields": {
+        "name": "Hobbits",
+        "is_active": true,
+        "description": "several little mans"
+    }
+},
+{
+    "model": "bets.team",
+    "pk": 2,
+    "fields": {
+        "name": "Orcs",
+        "is_active": true,
+        "description": "ugly jerks"
+    }
+},
+{
+    "model": "bets.game",
+    "pk": 1,
+    "fields": {
+        "team_first": 1,
+        "team_second": 2,
+        "status": "await"
+    }
+}
+]
