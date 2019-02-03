@@ -71,13 +71,6 @@ def save_user_profile(sender, instance, **kwargs):
 class Transaction(models.Model):
     # TODO: BET = 'be', (BET, 0)...(BET, 'bet')
     # Q: добавить поле: user(?)
-    TRANSACTION_COMISSIONS = (
-        ('co', Decimal(0)),
-        ('be', Decimal(0)),
-        ('de', Decimal(0)),
-        ('re', Decimal(0)),
-        ('ga', Decimal(0.03))
-    )
     TRANSACTION_TYPES = (
         # техническая "комиссионная транзакция", всегда должна идти с comission=0(иначе рекурсия),
         # возникает, если у любой другой транзакции была выставлена комиссия
@@ -105,7 +98,7 @@ class Transaction(models.Model):
         instance = cls.objects.create(value=value, type=transaction_type, wallet_to=wallet_to, wallet_from=wallet_from)
         instance.save()
 
-        value = cls.__hold_comission(wallet_from, value)
+        value = cls.__hold_comission(wallet_from, value, transaction_type)
         if wallet_from:
             wallet_from.balance -= value
             wallet_from.save()
@@ -118,7 +111,7 @@ class Transaction(models.Model):
     def __hold_comission(cls, wallet_from, value, transaction_type):
         company_wallet = Wallet.objects.get(is_company_wallet=True)
 
-        comission_percent = cls.TRANSACTION_COMISSIONS[transaction_type]
+        comission_percent = cls.__get_comission_percent(transaction_type)
         if not comission_percent:
             return value
 
@@ -128,6 +121,17 @@ class Transaction(models.Model):
         cls.objects.create(value=comission, type='co', wallet_from=wallet_from, wallet_to=company_wallet)
 
         return transfer_value
+
+    @classmethod
+    def __get_comission_percent(cls, comission_type):
+        TRANSACTION_COMISSIONS = dict([
+            ('co', Decimal(0)),
+            ('be', Decimal(0)),
+            ('de', Decimal(0)),
+            ('re', Decimal(0)),
+            ('ga', Decimal(0.03))
+        ])
+        return TRANSACTION_COMISSIONS[comission_type]
 
 
 class Team(models.Model):
@@ -194,7 +198,7 @@ class Bet(models.Model):
 
     created_at = models.DateTimeField(default=now, editable=False)
 
-    @transaction.atomic()
+    # @transaction.atomic()
     def cancel_bet(self):
         TR_TYPE = 're'  # refund
         # если игру отменили, то деньги возвращаем без комиссии
@@ -205,7 +209,7 @@ class Bet(models.Model):
         self.wallet.is_active = False
         self.save()
 
-    @transaction.atomic()
+    # @transaction.atomic()
     def close_bet(self):
         TR_TYPE = 'ga'
         if not self.contributor:

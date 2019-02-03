@@ -14,21 +14,6 @@ class WalletSerializer(serializers.ModelSerializer):
         fields = ('balance', )
 
 
-class DepositeToSerializer(serializers.Serializer):
-    deposite = serializers.DecimalField(
-        max_digits=22, decimal_places=10, validators=[bets_models.not_negative_value_validator]
-    )
-    wallet = WalletSerializer()
-
-    def create(self, validated_data):
-        TR_TYPE = 'de'
-        wallet = validated_data.get('wallet')
-        print(wallet, '<<<<<')
-        value = validated_data.get('deposite')
-        bets_models.Transaction.send(value, TR_TYPE, wallet)
-        return bets_models.Transaction.send(value, TR_TYPE, wallet)
-
-
 # TODO: поботать что такое HyperlinkedModelSerializer и чем от ModelSerializer отличается
 class ProfileSerializer(serializers.ModelSerializer):
     wallet = WalletSerializer()
@@ -57,6 +42,15 @@ class UserField(serializers.PrimaryKeyRelatedField):
         return False
 
 
+class DepositeToSerializer(serializers.Serializer):
+    deposite = serializers.DecimalField(
+        max_digits=22, decimal_places=10, validators=(bets_models.not_negative_value_validator,)
+    )
+
+    class Meta:
+        fields = ('deposite', )
+
+
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
@@ -68,11 +62,7 @@ class TeamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = bets_models.Team
-        fields = (
-            'name',
-            'is_active',
-            'description'
-        )
+        fields = ('name', 'is_active', 'description')
 
 
 class TeamField(serializers.PrimaryKeyRelatedField):
@@ -85,9 +75,11 @@ class TeamField(serializers.PrimaryKeyRelatedField):
 
 class GameSerializer(serializers.ModelSerializer):
     """Game"""
-    team_first = TeamField(queryset=bets_models.Team.objects.all())
-    team_second = TeamField(queryset=bets_models.Team.objects.all())
+    team_first = TeamField(queryset=bets_models.Team.objects.all(), required=True)
+    team_second = TeamField(queryset=bets_models.Team.objects.all(), required=True)
+    # с полями джанго не умеет
     winner = TeamField(queryset=bets_models.Team.objects.all(), required=False)
+    # winner = TeamSerializer(required=False)
 
     class Meta:
         model = bets_models.Game
@@ -116,8 +108,8 @@ class BetSerializer(serializers.ModelSerializer):
     """Bet"""
     game = GameField(queryset=bets_models.Game.objects.all(), required=True)
     betted_on = TeamField(queryset=bets_models.Team.objects.all(), required=True)
-    creator = UserSerializer(required=True)
-    contributor = UserSerializer(required=True)
+    creator = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=True)
+    contributor = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
     wallet = WalletSerializer(required=False, read_only=True)
     bet_value = serializers.DecimalField(max_digits=22, decimal_places=10, required=True)
     # TODO: добавить контекст, в list оставить только game, betted_on, creator_id, contr_id
@@ -135,38 +127,38 @@ class BetSerializer(serializers.ModelSerializer):
         )
 
     # def to_internal_value(self, data):
-    @transaction.atomic()
+    # @transaction.atomic()
     def create(self, validated_data):
         TRANSACTION_TYPE = 'be'
-
-        value = validated_data['betted_on']
-        wallet_from = validated_data.creator.profile.wallet
+        # creator = User.objects.get(pk=validated_data['creator'])
+        value = validated_data['bet_value']
+        wallet_from = validated_data['creator'].profile.wallet
         wallet_to = bets_models.Wallet.objects.create()
 
         bets_models.Transaction.send(value, TRANSACTION_TYPE, wallet_to, wallet_from)
         validated_data['wallet'] = wallet_to
 
-        return bets_models.Bet.create(**validated_data)
+        return bets_models.Bet.objects.create(**validated_data)
 
-    @transaction.atomic()
-    def update(self, instnance, validated_data):
+    # @transaction.atomic()
+    def update(self, instance, validated_data):
         TRANSACTION_TYPE = 'be'
 
         if 'contributor' in validated_data:
-            value = instnance.bet_value
-            wallet_to = instnance.wallet
+            value = instance.bet_value
+            wallet_to = instance.wallet
             wallet_from = validated_data.contributor.profile.wallet
 
             bets_models.Transaction.send(value, TRANSACTION_TYPE, wallet_to, wallet_from)
-            instnance.contributor = validated_data['contributor']
-            instnance.save()
+            instance.contributor = validated_data['contributor']
+            instance.save()
 
         if 'cancel' in validated_data:
-            instnance.close()
+            instance.close()
 
-        return instnance
+        return instance
 
-    @transaction.atomic()
+    # @transaction.atomic()
     def player_validation(self, data):
         pass
 
@@ -174,9 +166,9 @@ class BetSerializer(serializers.ModelSerializer):
         # ставку можно отменить, если еще нет оппонента
         pass
 
-    def validate(self, data):
-        super().validate(data)
-        print(data)
+    # def validate(self, data):
+    #     super().validate(data)
+    #     print(data)
     #     print(validate)
     #     return False
 

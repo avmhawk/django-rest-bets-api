@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User, Group
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, decorators, status, response
 import bets.serializers as bets_serializers  # UserSerializer, GroupSerializer, GameSerializer
 from bets.models import Game, Team, Bet, Transaction, Wallet
@@ -21,8 +22,8 @@ class UserViewSet(viewsets.ModelViewSet):
     @decorators.action(detail=True, methods=['post'], permission_classes=(permissions.IsAdminUser,))
     def create_bet(self, request, pk=None, format=None):
         data = request.data
-        data['creator'] = User.objects.get(pk)
-        serializer = bets_serializers.BetSerializer(data=request.data)
+        data['creator'] = pk
+        serializer = bets_serializers.BetSerializer(data=data)
 
         if serializer.is_valid():
             serializer.save()
@@ -31,18 +32,14 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @decorators.action(detail=True, methods=['put'], permission_classes=(permissions.IsAdminUser,))
     def deposite_to(self, request, pk=None, format=None):
-        print(pk)
-        user = User.objects.get(pk=pk)
-        print(pk, user)
-        print(pk, user.profile)
-        print(user.profile.wallet)
-        # TODO: проверки м ошибки
-        data = request.data
-        data['wallet'] = user.profile.wallet
+        TR_TYPE = 'de'
+        user = get_object_or_404(User.objects.all(), pk=pk)
 
-        serializer = bets_serializers.DepositeToSerializer(data=data)
+        serializer = bets_serializers.DepositeToSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            value = serializer.validated_data['deposite']
+            Transaction.send(value, TR_TYPE, user.profile.wallet)
+            # obj = Transaction.send(value, TR_TYPE, user.profile.wallet)
             return response.Response(serializer.data)
         return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -112,7 +109,7 @@ class GameViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows games to be viewed or edited by admins.
     """
-    queryset = Game.objects.all()
+    queryset = Game.objects.all().order_by('-created_at')
     serializer_class = bets_serializers.GameSerializer
     # permission_classes = (permissions.IsAdminUser|ReadOnly, )
 
