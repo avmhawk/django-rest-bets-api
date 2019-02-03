@@ -61,5 +61,17 @@
         "team_second": 2,
         "status": "await"
     }
+},
+{
+    "model": "bets.bet",
+    "pk": 1,
+    "fields": {
+        "game": 1,
+        "betted_on": 2,
+        "status": "new",
+        "bet_value": 100,
+        "creator": 1,
+        "wallet": 1
+    }
 }
 ]

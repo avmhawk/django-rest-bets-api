@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets, permissions, decorators, status, response
 import bets.serializers as bets_serializers  # UserSerializer, GroupSerializer, GameSerializer
-from bets.models import Game, Team, Bet
+from bets.models import Game, Team, Bet, Transaction, Wallet
 
 
 # TODO: вынести в permissions:
@@ -18,18 +18,40 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = bets_serializers.UserSerializer
     # permission_classes = [IsAccountAdminOrReadOnly]
 
-    @decorators.action(detail=True, methods=['post'], permission_classes=(permissions.IsAuthenticated,))
+    @decorators.action(detail=True, methods=['post'], permission_classes=(permissions.IsAdminUser,))
     def create_bet(self, request, pk=None, format=None):
-        creator = self.get_object(pk)
-        game = Game.objects.get_object(request.data['game'])
-        betted_on = Team.objects.get_object(request.data['betted_on'])
+        data = request.data
+        data['creator'] = User.objects.get(pk)
         serializer = bets_serializers.BetSerializer(data=request.data)
-        #  game, betted_on, wallet, value
-        # 1. betted_on > 0
-        # 2. game is active
-        print(serializer.is_valid())
-        print(serializer.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return response.Response(serializer.data)
         return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @decorators.action(detail=True, methods=['put'], permission_classes=(permissions.IsAdminUser,))
+    def deposite_to(self, request, pk=None, format=None):
+        print(pk)
+        user = User.objects.get(pk=pk)
+        print(pk, user)
+        print(pk, user.profile)
+        print(user.profile.wallet)
+        # TODO: проверки м ошибки
+        data = request.data
+        data['wallet'] = user.profile.wallet
+
+        serializer = bets_serializers.DepositeToSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return response.Response(serializer.data)
+        return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WalletViewSet(viewsets.ModelViewSet):
+    queryset = Wallet.objects.all().order_by('-created_at')
+    serializer_class = bets_serializers.WalletSerializer
+
+    permission_classes = (permissions.IsAdminUser, )
 
 
 # class SnippetDetail(APIView):
@@ -90,9 +112,22 @@ class GameViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows games to be viewed or edited by admins.
     """
-    queryset = Game.objects.all()  # .order_by('-date_joined')
+    queryset = Game.objects.all()
     serializer_class = bets_serializers.GameSerializer
     # permission_classes = (permissions.IsAdminUser|ReadOnly, )
+
+    @decorators.action(detail=True, methods=['put'], permission_classes=(permissions.IsAdminUser,))
+    def cancel_game(self, request, pk=None, format=None):
+        pass
+
+    @decorators.action(detail=True, methods=['put'], permission_classes=(permissions.IsAdminUser,))
+    def set_winner(self, request, pk=None, format=None):
+        game = self.get_object(pk)
+        serializer = bets_serializers.GameSerializer(game, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return response.Response(serializer.data)
+        return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class BetsViewSet(viewsets.ModelViewSet):

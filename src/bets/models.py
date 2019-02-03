@@ -70,6 +70,7 @@ def save_user_profile(sender, instance, **kwargs):
 
 class Transaction(models.Model):
     # TODO: BET = 'be', (BET, 0)...(BET, 'bet')
+    # Q: добавить поле: user(?)
     TRANSACTION_COMISSIONS = (
         ('co', Decimal(0)),
         ('be', Decimal(0)),
@@ -98,19 +99,20 @@ class Transaction(models.Model):
 
     created_at = models.DateTimeField(default=now, editable=False)
 
+    # @transaction.atomic()
     @classmethod
-    def deposit(cls, wallet_to, value):
-        pass
+    def send(cls, value, transaction_type, wallet_to, wallet_from=None):
+        instance = cls.objects.create(value=value, type=transaction_type, wallet_to=wallet_to, wallet_from=wallet_from)
+        instance.save()
 
-    @transaction.atomic()
-    @classmethod
-    def send(cls, value, transaction_tyoe, wallet_to, wallet_from=None):
         value = cls.__hold_comission(wallet_from, value)
-        wallet_from.balance -= value
-        wallet_from.save()
+        if wallet_from:
+            wallet_from.balance -= value
+            wallet_from.save()
 
         wallet_to.balance += value
         wallet_to.save()
+        return instance
 
     @classmethod
     def __hold_comission(cls, wallet_from, value, transaction_type):
@@ -156,6 +158,19 @@ class Game(models.Model):
 
     created_at = models.DateTimeField(default=now, editable=False)
 
+    def end_game(self, winner_team):
+        bets = Bet.objects.filter(game__pk=self.pk)
+        if winner_team:
+            self.winner = winner_team
+            self.save()
+        for bet in bets:
+            Bet.close()
+
+    def cancel_game(self):
+        bets = Bet.objects.filter(game__pk=self.pk)
+        for bet in bets:
+            Bet.cancel()
+
     # class Meta:
     #     verbose_name = 'Game'
     #     verbose_name_plural = 'Games'
@@ -175,8 +190,40 @@ class Bet(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bets_created')
     contributor = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='bets_contributed')
     status = models.CharField(choices=BET_STATUSES, max_length=3, default='new')
-    # OneToOne (ставка всегда связана с одним кошельком, как и пользователь)
-    # wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE)
     wallet = models.OneToOneField(Wallet, on_delete=models.CASCADE)
 
     created_at = models.DateTimeField(default=now, editable=False)
+
+    @transaction.atomic()
+    def cancel_bet(self):
+        TR_TYPE = 're'  # refund
+        # если игру отменили, то деньги возвращаем без комиссии
+        Transaction.send(self.bet_value, TR_TYPE, self.creator.profile.wallet, self.wallet)
+        if self.contributor:
+            Transaction.send(self.bet_value, TR_TYPE, self.contributor.profile.wallet, self.wallet)
+        self.status = 'cnl'
+        self.wallet.is_active = False
+        self.save()
+
+    @transaction.atomic()
+    def close_bet(self):
+        TR_TYPE = 'ga'
+        if not self.contributor:
+            # по идее, раз оба ставили и игра произошла, то комиссию берем, никакой халявы:
+            Transaction.send(self.bet_value, TR_TYPE, self.creator.profile.wallet, self.wallet)
+            self.status = 'cls'
+            self.wallet.is_active = False
+            self.save()
+            return
+
+        if self.game.winner == self.creator:
+            Transaction.send(self.wallet.balance, TR_TYPE, self.creator.profile.wallet, self.wallet)
+        elif self.game.winner == self.contributor:
+            Transaction.send(self.wallet.balance, TR_TYPE, self.creator.profile.wallet, self.wallet)
+        else:
+            # по идее, раз оба ставили и игра произошла, то комиссию берем, никакой халявы:
+            Transaction.send(self.bet_value, TR_TYPE, self.creator.profile.wallet, self.wallet)
+            Transaction.send(self.bet_value, TR_TYPE, self.contributor.profile.wallet, self.wallet)
+        self.status = 'cls'
+        self.wallet.is_active = False
+        self.save()
