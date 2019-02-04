@@ -137,11 +137,23 @@ class BetsViewSet(viewsets.ModelViewSet):
 
     # @decorators.action(detail=True, methods=['post'], permission_classes=(permissions.IsAuthenticatedOrReadOnly,))
     def create(self, request):
-        # creator = request.user
         data = request.data
         data['creator'] = request.user
-        serializer = bets_serializers.BetSerializer(data=request.data)
+        serializer = bets_serializers.BetSerializer(data=data)
 
         if serializer.is_valid():
-            print(serializer.data)
+            serializer.save()
+            return response.Response(serializer.data)
+        return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @decorators.action(detail=True, methods=['patch'], permission_classes=(permissions.IsAdminUser,))
+    def contribute_bet(self, request, pk=None, format=None):
+        data = request.data
+        data['contributor'] = request.user.pk
+        bet = Bet.objects.get(pk=pk)
+        serializer = bets_serializers.BetSerializer(bet, data=data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return response.Response(serializer.data)
         return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

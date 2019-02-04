@@ -31,7 +31,20 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('url', 'username', 'email', 'profile')  # , 'bets_created', 'bets_contributed')n
+        fields = ('url', 'username', 'email', 'profile', 'password')  # , 'bets_created', 'bets_contributed')n
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        user = User(
+            email=validated_data['email'],
+            username=validated_data['username']
+        )
+        user.set_password(validated_data['password'])
+        user.save()
+        return user
+
+    # def update(self, instance, validated_data):
+    #     instance =
 
 
 class UserField(serializers.PrimaryKeyRelatedField):
@@ -62,7 +75,7 @@ class TeamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = bets_models.Team
-        fields = ('name', 'is_active', 'description')
+        fields = ('pk', 'name', 'is_active', 'description')
 
 
 class TeamField(serializers.PrimaryKeyRelatedField):
@@ -84,6 +97,7 @@ class GameSerializer(serializers.ModelSerializer):
     class Meta:
         model = bets_models.Game
         fields = (
+            'pk',
             'team_first',
             'team_second',
             'status',
@@ -117,6 +131,7 @@ class BetSerializer(serializers.ModelSerializer):
     class Meta:
         model = bets_models.Bet
         fields = (
+            'pk',
             'game',
             'betted_on',
             'bet_value',
@@ -147,7 +162,7 @@ class BetSerializer(serializers.ModelSerializer):
         if 'contributor' in validated_data:
             value = instance.bet_value
             wallet_to = instance.wallet
-            wallet_from = validated_data.contributor.profile.wallet
+            wallet_from = validated_data['contributor'].profile.wallet
 
             bets_models.Transaction.send(value, TRANSACTION_TYPE, wallet_to, wallet_from)
             instance.contributor = validated_data['contributor']
